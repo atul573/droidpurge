@@ -2,14 +2,17 @@
   <img src="https://img.shields.io/badge/Platform-macOS%20|%20Linux%20|%20Windows-blue?style=for-the-badge" alt="Platform" />
   <img src="https://img.shields.io/badge/ADB-34.0+-green?style=for-the-badge&logo=android" alt="ADB" />
   <img src="https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js" />
+  <img src="https://img.shields.io/badge/WebUSB-Chrome%20|%20Edge-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white" alt="WebUSB" />
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License" />
 </p>
 
-# 🤖 ADB App Manager
+# 🤖 DroidPurge — ADB App Manager
 
-A beautiful, modern web interface for managing Android applications via ADB (Android Debug Bridge). Browse installed apps, search packages, and **mass-uninstall** applications from any connected Android device — all from your browser.
+A beautiful, modern web interface for managing Android applications via ADB. Browse installed apps, search packages, and **mass-uninstall** applications from any connected Android device.
 
-![ADB App Manager Screenshot](docs/screenshot.png)
+**🌐 Works in two modes:**
+- **☁️ Cloud / WebUSB** — Visit [adb-app-manager.vercel.app](https://adb-app-manager.vercel.app), plug in your phone, and manage apps directly from Chrome/Edge. Zero installs.
+- **💻 Local / Express** — Clone & run locally for full ADB access from any browser.
 
 ---
 
@@ -17,9 +20,10 @@ A beautiful, modern web interface for managing Android applications via ADB (And
 
 | Feature | Description |
 |---------|-------------|
+| 🔌 **WebUSB (Browser-Native ADB)** | Connect to your Android device directly from Chrome/Edge — no server needed |
 | 📱 **Device Detection** | Auto-detects all connected Android devices with model info & status |
 | 🔄 **Multi-Device Support** | Switch between multiple connected phones/tablets seamlessly |
-| 📦 **App Listing** | View all user-installed or system apps with version numbers |
+| 📦 **App Listing** | View all user-installed or system apps |
 | 🔍 **Live Search** | Instantly filter packages by name as you type |
 | ☑️ **Batch Selection** | Select All / Deselect All with individual checkboxes |
 | 🗑️ **Mass Uninstall** | Remove multiple apps at once with a single click |
@@ -29,7 +33,22 @@ A beautiful, modern web interface for managing Android applications via ADB (And
 
 ---
 
-## 🚀 Quick Start
+## 🌐 Use Online (WebUSB — No Install)
+
+1. Open **[adb-app-manager.vercel.app](https://adb-app-manager.vercel.app)** in **Chrome** or **Edge**
+2. Enable **USB Debugging** on your Android phone
+3. Plug in your phone via USB
+4. Click **"Connect Android Device"** and select your device in the browser popup
+5. Accept the USB debugging prompt on your phone
+6. Browse & uninstall apps!
+
+> ⚠️ **Important:** If you get a "device claimed" error, run `adb kill-server` on your computer first (the native ADB daemon may be holding the USB connection).
+
+> 💡 **Browser requirement:** WebUSB requires a Chromium-based browser (Chrome, Edge, Brave). Firefox/Safari are not supported.
+
+---
+
+## 💻 Run Locally (Full ADB Mode)
 
 ### Prerequisites
 
@@ -77,11 +96,13 @@ git clone https://github.com/atul573/droidpurge.git && cd droidpurge && npm inst
 
 ### 1. Connect Your Device
 
-Plug in your Android device via USB. Ensure USB Debugging is enabled and you've authorized the computer on the phone's prompt.
+**WebUSB (cloud):** Click "Connect Android Device" → select in popup → accept on phone.
+
+**Local:** Plug in via USB. The app auto-detects connected devices.
 
 ### 2. Select Device
 
-The app will auto-detect connected devices. Click on a device card to select it.
+Click on a device card to select it.
 
 ### 3. Browse Apps
 
@@ -103,14 +124,13 @@ Click the red **"Uninstall Selected"** button → confirm in the modal → done!
 ## 🏗️ Architecture
 
 ```
-andrioddebugbridge/
-├── server.js           # Express backend — ADB command bridge
+droidpurge/
+├── server.js           # Express backend — ADB command bridge (local mode)
 ├── public/
 │   ├── index.html      # Main HTML page
 │   ├── style.css       # Premium dark theme CSS
-│   └── app.js          # Client-side JavaScript
-├── docs/
-│   └── screenshot.png  # App screenshot
+│   ├── webadb.js       # WebUSB ADB protocol implementation (browser mode)
+│   └── app.js          # Client-side logic (dual-mode: WebUSB + API)
 ├── package.json
 ├── vercel.json         # Vercel deployment config
 ├── .gitignore
@@ -118,7 +138,21 @@ andrioddebugbridge/
 └── README.md
 ```
 
-### API Endpoints
+### How It Works
+
+**WebUSB Mode (Cloud/Browser):**
+```
+Browser → WebUSB API → USB → Android Device
+         (webadb.js implements ADB protocol)
+```
+
+**Local Mode (Express):**
+```
+Browser → Express API → ADB CLI → USB → Android Device
+         (server.js bridges HTTP to ADB commands)
+```
+
+### API Endpoints (Local Mode Only)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -130,33 +164,14 @@ andrioddebugbridge/
 
 ---
 
-## 🌐 Deployment
-
-### Vercel (Static Preview)
-
-The frontend is deployed to Vercel as a static showcase. **Note:** The ADB backend requires a local machine with USB access, so the Vercel deployment serves as a demo/preview only.
-
-```bash
-vercel --prod
-```
-
-### Local (Full Functionality)
-
-For actual device management, always run locally:
-
-```bash
-npm start
-```
-
----
-
 ## 🛠️ Tech Stack
 
-- **Backend:** Node.js + Express
+- **WebUSB:** Browser-native USB communication (Chrome/Edge)
+- **Backend:** Node.js + Express (local mode)
 - **Frontend:** Vanilla HTML/CSS/JS
 - **Styling:** Custom CSS with glassmorphism, CSS Grid, animations
 - **Typography:** [Inter](https://fonts.google.com/specimen/Inter) (Google Fonts)
-- **Device Interface:** ADB (Android Debug Bridge)
+- **Device Interface:** ADB protocol (WebUSB) / ADB CLI (local)
 
 ---
 
@@ -180,6 +195,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 ## 🙏 Acknowledgments
 
+- [WebUSB API](https://developer.mozilla.org/en-US/docs/Web/API/WebUSB_API) for browser-native USB access
 - [Android Debug Bridge (ADB)](https://developer.android.com/tools/adb) by Google
 - [Inter Typeface](https://rsms.me/inter/) by Rasmus Andersson
 - Built with ❤️ for the Android community

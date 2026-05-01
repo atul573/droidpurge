@@ -203,17 +203,22 @@ async function connectWebUSB() {
       </svg>
       Connect Android Device`;
 
-    // Show user-friendly error
-    let errorMsg = e.message;
-    if (e.name === 'NotFoundError') {
-      errorMsg = 'No device selected. Click "Connect" and choose your Android device from the popup.';
-    } else if (e.name === 'SecurityError') {
-      errorMsg = 'USB access denied. Make sure you\'re on HTTPS or localhost.';
-    } else if (e.message.includes('claimed')) {
-      errorMsg = 'Device is in use. Run "adb kill-server" on your computer first, then try again.';
-    }
+    // Detect specific errors
+    const msg = (e.message || '').toLowerCase();
+    const isClaimError = msg.includes('claim') || msg.includes('unable to claim');
+    const isNotFound = e.name === 'NotFoundError';
+    const isSecurity = e.name === 'SecurityError';
 
-    showToast(errorMsg, 'error');
+    if (isClaimError) {
+      // Show prominent inline fix — ADB server is blocking
+      showClaimError();
+    } else if (isNotFound) {
+      showToast('No device selected. Click "Connect" and choose your device from the popup.', 'error');
+    } else if (isSecurity) {
+      showToast('USB access denied. Make sure you\'re on HTTPS or localhost.', 'error');
+    } else {
+      showToast(e.message, 'error');
+    }
   }
 }
 
@@ -233,6 +238,66 @@ async function disconnectAndReconnect() {
   document.getElementById('action-bar').classList.add('hidden');
 
   showWebUSBLanding();
+}
+
+// ── Show claim error with fix instructions ──
+function showClaimError() {
+  const container = document.getElementById('device-list');
+  const isMac = navigator.platform.toUpperCase().includes('MAC');
+  const isWin = navigator.platform.toUpperCase().includes('WIN');
+
+  const killCmd = isWin ? 'adb.exe kill-server' : 'adb kill-server';
+
+  container.innerHTML = `
+    <div class="setup-guide">
+      <div class="setup-hero">
+        <div class="setup-icon">🔒</div>
+        <h3>USB Device Is Locked</h3>
+        <p>The ADB daemon on your computer is holding the USB connection.<br>
+        You need to stop it first so your browser can take over.</p>
+      </div>
+
+      <div class="setup-steps" style="text-align:left; max-width:520px; margin:0 auto;">
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-content">
+            <h4>Open Terminal and run:</h4>
+            <div class="code-block" onclick="copyCommand(this)">
+              <code>${killCmd}</code>
+              <span class="copy-hint">📋 Click to copy</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-content">
+            <h4>Unplug & replug your phone</h4>
+            <p style="font-size:0.8rem; color:var(--text-tertiary);">This ensures the browser gets a fresh USB connection.</p>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">3</div>
+          <div class="setup-step-content">
+            <h4>Click Connect again</h4>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg" onclick="connectWebUSB()" id="connect-btn" style="margin-top:20px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+        Try Again
+      </button>
+
+      <div id="auth-note" class="setup-note" style="display:none;">
+        <div class="setup-note-icon">📱</div>
+        <p><strong>Check your phone!</strong> Accept the "Allow USB debugging?" prompt to continue.</p>
+      </div>
+    </div>`;
 }
 
 // ── Toast notification ──
