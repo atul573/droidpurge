@@ -1,0 +1,18 @@
+{
+  "name": "adb-app-manager",
+  "version": "1.0.0",
+  "description": "A beautiful web interface for managing Android apps via ADB — browse, search, and mass-uninstall applications",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["adb", "android", "uninstall", "app-manager", "debug-bridge"],
+  "author": "atul573",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.2.1"
+  }
+}

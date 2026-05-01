@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADB App Manager — Android Device Controller</title>
+  <meta name="description" content="Manage, browse, and mass-uninstall Android apps via ADB with a beautiful web interface.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Animated background -->
+  <div class="bg-grid"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <!-- Header -->
+  <header id="app-header">
+    <div class="header-content">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg viewBox="0 0 48 48" fill="none">
+            <rect x="8" y="18" width="32" height="24" rx="4" fill="url(#g1)" />
+            <rect x="14" y="6" width="4" height="14" rx="2" fill="url(#g1)" transform="rotate(-30 16 13)" />
+            <rect x="30" y="6" width="4" height="14" rx="2" fill="url(#g1)" transform="rotate(30 32 13)" />
+            <circle cx="18" cy="28" r="2.5" fill="#0d1117" />
+            <circle cx="30" cy="28" r="2.5" fill="#0d1117" />
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="48" y2="48">
+                <stop offset="0%" stop-color="#3DDC84" />
+                <stop offset="100%" stop-color="#00BFA5" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1>ADB App Manager</h1>
+          <p class="subtitle">Browse & mass-uninstall Android apps</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="btn-refresh-devices" class="btn btn-outline" onclick="loadDevices()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app-main">
+
+    <!-- Step 1: Device Selection -->
+    <section id="device-section" class="card">
+      <div class="card-header">
+        <div class="step-badge">1</div>
+        <div>
+          <h2>Select Device</h2>
+          <p class="card-desc">Choose a connected Android device to manage</p>
+        </div>
+      </div>
+      <div id="device-list" class="device-grid">
+        <div class="empty-state">
+          <div class="spinner"></div>
+          <p>Scanning for devices…</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 2: Package List -->
+    <section id="package-section" class="card hidden">
+      <div class="card-header">
+        <div class="step-badge">2</div>
+        <div>
+          <h2>Installed Applications</h2>
+          <p class="card-desc" id="pkg-count-label">Loading packages…</p>
+        </div>
+        <div class="card-header-actions">
+          <div class="toggle-group">
+            <button id="btn-user-apps" class="toggle-btn active" onclick="setFilter('user')">User Apps</button>
+            <button id="btn-all-apps" class="toggle-btn" onclick="setFilter('all')">All Apps</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search & bulk actions -->
+      <div class="toolbar">
+        <div class="search-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search-input" placeholder="Search packages…" oninput="filterPackages()">
+        </div>
+        <div class="bulk-actions">
+          <button class="btn btn-sm btn-ghost" onclick="selectAll()">Select All</button>
+          <button class="btn btn-sm btn-ghost" onclick="deselectAll()">Deselect All</button>
+          <span id="selected-count" class="badge">0 selected</span>
+        </div>
+      </div>
+
+      <!-- Package list -->
+      <div id="package-list" class="package-list">
+        <div class="empty-state">
+          <div class="spinner"></div>
+          <p>Fetching installed applications…</p>
+        </div>
+      </div>
+
+      <!-- Sticky uninstall bar -->
+      <div id="action-bar" class="action-bar hidden">
+        <div class="action-bar-content">
+          <span id="action-count">0 apps selected</span>
+          <button id="btn-uninstall" class="btn btn-danger" onclick="uninstallSelected()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            Uninstall Selected
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Step 3: Results -->
+    <section id="results-section" class="card hidden">
+      <div class="card-header">
+        <div class="step-badge done">✓</div>
+        <div>
+          <h2>Uninstall Results</h2>
+          <p class="card-desc">Summary of the operation</p>
+        </div>
+      </div>
+      <div id="results-list" class="results-list"></div>
+      <div class="card-footer">
+        <button class="btn btn-primary" onclick="reloadPackages()">← Back to App List</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Confirmation Modal -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-icon danger">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <h3>Confirm Mass Uninstall</h3>
+      <p id="confirm-text">Are you sure you want to uninstall <strong>0</strong> apps? This action cannot be undone.</p>
+      <div id="confirm-list" class="confirm-pkg-list"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-danger" id="btn-confirm-uninstall" onclick="confirmUninstall()">Yes, Uninstall All</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
