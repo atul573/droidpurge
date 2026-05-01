@@ -1024,3 +1024,98 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Large Button ── */
+.btn-lg {
+  padding: 14px 32px;
+  font-size: 1rem;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 30px var(--accent-glow);
+  transition: all 0.3s;
+}
+
+.btn-lg:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px var(--accent-glow), 0 8px 30px rgba(0,0,0,0.3);
+}
+
+/* ── Small Spinner ── */
+.spinner-sm {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0,0,0,0.2);
+  border-top-color: var(--bg-base);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+/* ── Auth/Setup Note ── */
+.setup-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 500px;
+  margin: 20px auto 0;
+  padding: 14px 18px;
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.25);
+  border-radius: var(--radius-sm);
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+.setup-note-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  animation: float 2s ease-in-out infinite;
+}
+
+.setup-note p {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.setup-note p strong {
+  color: var(--warning);
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(210, 153, 34, 0.25); }
+  50% { border-color: rgba(210, 153, 34, 0.6); }
+}
+
+/* ── Toast Notifications ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  z-index: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transition: transform 0.3s ease;
+  max-width: 90vw;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast-error {
+  border-color: rgba(248, 81, 73, 0.4);
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.toast-success {
+  border-color: rgba(63, 185, 80, 0.4);
+  background: rgba(63, 185, 80, 0.1);
+}

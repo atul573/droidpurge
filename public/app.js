@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════
    ADB App Manager — Client Logic
+   Dual-mode: WebUSB (browser) + Express API (local)
    ═══════════════════════════════════════════ */
 
 const API = '';  // same origin
@@ -12,15 +13,272 @@ let state = {
   selectedPackages: new Set(),
   filter: 'user',  // 'user' | 'all'
   pendingUninstall: [],
+  mode: 'detect',  // 'webusb' | 'api' | 'detect'
+  adb: null,       // WebADB instance
 };
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
-  loadDevices();
+  detectMode();
 });
 
-// ── Device Management ──
+// ── Refresh handler (header button) ──
+function refreshDevices() {
+  if (state.mode === 'webusb') {
+    disconnectAndReconnect();
+  } else {
+    loadDevices();
+  }
+}
+
+// ── Mode Detection ──
+function detectMode() {
+  const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+  if (isLocalhost) {
+    // Try API first when running locally
+    state.mode = 'api';
+    loadDevices();
+  } else {
+    // On Vercel/cloud — use WebUSB
+    if (WebADB.isSupported()) {
+      state.mode = 'webusb';
+      showWebUSBLanding();
+    } else {
+      state.mode = 'unsupported';
+      showBrowserUnsupported();
+    }
+  }
+}
+
+// ── WebUSB Landing UI ──
+function showWebUSBLanding() {
+  const container = document.getElementById('device-list');
+  container.innerHTML = `
+    <div class="setup-guide">
+      <div class="setup-hero">
+        <div class="setup-icon">🔌</div>
+        <h3>Connect Your Android Device</h3>
+        <p>Plug your phone into this computer via USB, then click the button below.<br>
+        Your browser will directly communicate with your device — no installs needed.</p>
+      </div>
+
+      <button class="btn btn-primary btn-lg" onclick="connectWebUSB()" id="connect-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+        Connect Android Device
+      </button>
+
+      <div class="setup-prereqs" style="margin-top:28px;">
+        <h4>Before You Connect</h4>
+        <div class="prereq-grid">
+          <div class="prereq-item">
+            <span class="prereq-icon">🔧</span>
+            <div>
+              <strong>USB Debugging ON</strong>
+              <span class="prereq-link">Settings → Developer Options → USB Debugging</span>
+            </div>
+          </div>
+          <div class="prereq-item">
+            <span class="prereq-icon">🔌</span>
+            <div>
+              <strong>USB Cable Connected</strong>
+              <span class="prereq-link">Use a data cable, not charge-only</span>
+            </div>
+          </div>
+          <div class="prereq-item">
+            <span class="prereq-icon">🌐</span>
+            <div>
+              <strong>Chrome or Edge</strong>
+              <span class="prereq-link">WebUSB requires Chromium-based browsers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="setup-note" id="auth-note" style="display:none;">
+        <div class="setup-note-icon">📱</div>
+        <p><strong>Check your phone!</strong> Accept the "Allow USB debugging?" prompt to continue.</p>
+      </div>
+    </div>`;
+}
+
+// ── Browser Unsupported UI ──
+function showBrowserUnsupported() {
+  const container = document.getElementById('device-list');
+  container.innerHTML = `
+    <div class="setup-guide">
+      <div class="setup-hero">
+        <div class="setup-icon">⚠️</div>
+        <h3>Browser Not Supported</h3>
+        <p>WebUSB requires <strong>Chrome</strong> or <strong>Microsoft Edge</strong>.<br>
+        Please open this page in a supported browser, or run locally.</p>
+      </div>
+
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="setup-step-num">1</div>
+          <div class="setup-step-content">
+            <h4>Option A: Use Chrome/Edge</h4>
+            <div class="code-block" onclick="copyCommand(this)">
+              <code>${location.href}</code>
+              <span class="copy-hint">📋 Copy this URL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-step">
+          <div class="setup-step-num">2</div>
+          <div class="setup-step-content">
+            <h4>Option B: Run Locally (any browser)</h4>
+            <div class="code-block" onclick="copyCommand(this)">
+              <code>git clone https://github.com/atul573/droidpurge.git && cd droidpurge && npm install && npm start</code>
+              <span class="copy-hint">📋 Click to copy</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <a href="https://github.com/atul573/droidpurge" target="_blank" class="btn btn-primary" style="margin-top:8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+    </div>`;
+}
+
+// ── WebUSB Connect ──
+async function connectWebUSB() {
+  const btn = document.getElementById('connect-btn');
+  const authNote = document.getElementById('auth-note');
+
+  btn.disabled = true;
+  btn.innerHTML = `<div class="spinner-sm"></div> Connecting…`;
+  authNote.style.display = 'flex';
+
+  try {
+    state.adb = new WebADB();
+    const deviceInfo = await state.adb.connect();
+
+    state.devices = [deviceInfo];
+    state.selectedDevice = deviceInfo.serial;
+
+    // Show connected device
+    const container = document.getElementById('device-list');
+    container.innerHTML = `
+      <div class="device-card selected" id="device-0">
+        <div class="device-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <rect x="5" y="2" width="14" height="20" rx="2"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+        </div>
+        <div class="device-info">
+          <h3>${deviceInfo.model}</h3>
+          <p>${deviceInfo.serial}</p>
+        </div>
+        <span class="device-state online">Connected via WebUSB</span>
+      </div>
+
+      <div style="padding:12px 20px; text-align:center;">
+        <button class="btn btn-outline btn-sm" onclick="disconnectAndReconnect()">
+          🔄 Switch Device
+        </button>
+      </div>`;
+
+    // Show package section
+    document.getElementById('package-section').classList.remove('hidden');
+    document.getElementById('results-section').classList.add('hidden');
+
+    loadPackages();
+
+  } catch (e) {
+    authNote.style.display = 'none';
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <rect x="5" y="2" width="14" height="20" rx="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+      </svg>
+      Connect Android Device`;
+
+    // Show user-friendly error
+    let errorMsg = e.message;
+    if (e.name === 'NotFoundError') {
+      errorMsg = 'No device selected. Click "Connect" and choose your Android device from the popup.';
+    } else if (e.name === 'SecurityError') {
+      errorMsg = 'USB access denied. Make sure you\'re on HTTPS or localhost.';
+    } else if (e.message.includes('claimed')) {
+      errorMsg = 'Device is in use. Run "adb kill-server" on your computer first, then try again.';
+    }
+
+    showToast(errorMsg, 'error');
+  }
+}
+
+// ── Disconnect and allow reconnect ──
+async function disconnectAndReconnect() {
+  if (state.adb) {
+    await state.adb.disconnect();
+    state.adb = null;
+  }
+  state.selectedDevice = null;
+  state.devices = [];
+  state.packages = [];
+  state.selectedPackages.clear();
+
+  document.getElementById('package-section').classList.add('hidden');
+  document.getElementById('results-section').classList.add('hidden');
+  document.getElementById('action-bar').classList.add('hidden');
+
+  showWebUSBLanding();
+}
+
+// ── Toast notification ──
+function showToast(message, type = 'info') {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast';
+  toast.className = `toast toast-${type}`;
+  toast.innerHTML = `
+    <span>${type === 'error' ? '⚠️' : type === 'success' ? '✅' : 'ℹ️'}</span>
+    <span>${message}</span>`;
+  document.body.appendChild(toast);
+
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+// ── Copy to clipboard helper ──
+function copyCommand(el) {
+  const code = el.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const hint = el.querySelector('.copy-hint');
+    hint.textContent = '✅ Copied!';
+    hint.style.color = 'var(--accent)';
+    setTimeout(() => {
+      hint.textContent = '📋 Click to copy';
+      hint.style.color = '';
+    }, 2000);
+  });
+}
+
+// ══════════════════════════════════════════
+// ── Device Management (API mode) ──
+// ══════════════════════════════════════════
+
 async function loadDevices() {
+  if (state.mode === 'webusb') {
+    // WebUSB mode — devices are connected via connectWebUSB()
+    return;
+  }
+
   const container = document.getElementById('device-list');
   container.innerHTML = `<div class="empty-state"><div class="spinner"></div><p>Scanning for devices…</p></div>`;
 
@@ -63,85 +321,10 @@ async function loadDevices() {
       </div>
     `).join('');
   } catch (e) {
-    const isCloud = !location.hostname.includes('localhost') && !location.hostname.includes('127.0.0.1');
-    const isAdbMissing = e.message && e.message.toLowerCase().includes('adb');
-
-    if (isCloud || isAdbMissing) {
-      container.innerHTML = `
-        <div class="setup-guide">
-          <div class="setup-hero">
-            <div class="setup-icon">🖥️</div>
-            <h3>Run Locally to Manage Devices</h3>
-            <p>This app requires a local connection to your Android phone via USB.<br>Follow these steps to get started in under 60 seconds.</p>
-          </div>
-
-          <div class="setup-steps">
-            <div class="setup-step">
-              <div class="setup-step-num">1</div>
-              <div class="setup-step-content">
-                <h4>Clone & Install</h4>
-                <div class="code-block" onclick="copyCommand(this)">
-                  <code>git clone https://github.com/atul573/droidpurge.git && cd droidpurge && npm install</code>
-                  <span class="copy-hint">📋 Click to copy</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="setup-step">
-              <div class="setup-step-num">2</div>
-              <div class="setup-step-content">
-                <h4>Start the Server</h4>
-                <div class="code-block" onclick="copyCommand(this)">
-                  <code>npm start</code>
-                  <span class="copy-hint">📋 Click to copy</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="setup-step">
-              <div class="setup-step-num">3</div>
-              <div class="setup-step-content">
-                <h4>Open in Browser</h4>
-                <div class="code-block" onclick="copyCommand(this)">
-                  <code>http://localhost:3000</code>
-                  <span class="copy-hint">📋 Click to copy</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="setup-prereqs">
-            <h4>Prerequisites</h4>
-            <div class="prereq-grid">
-              <div class="prereq-item">
-                <span class="prereq-icon">📦</span>
-                <div>
-                  <strong>Node.js 18+</strong>
-                  <span class="prereq-link"><a href="https://nodejs.org" target="_blank">nodejs.org</a></span>
-                </div>
-              </div>
-              <div class="prereq-item">
-                <span class="prereq-icon">🤖</span>
-                <div>
-                  <strong>ADB (Android Debug Bridge)</strong>
-                  <span class="prereq-link">brew install android-platform-tools</span>
-                </div>
-              </div>
-              <div class="prereq-item">
-                <span class="prereq-icon">📱</span>
-                <div>
-                  <strong>USB Debugging Enabled</strong>
-                  <span class="prereq-link">Settings → Developer Options</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <a href="https://github.com/atul573/droidpurge" target="_blank" class="btn btn-primary" style="margin-top:8px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            View on GitHub
-          </a>
-        </div>`;
+    // API failed — show WebUSB option if supported
+    if (WebADB.isSupported()) {
+      state.mode = 'webusb';
+      showWebUSBLanding();
     } else {
       container.innerHTML = `
         <div class="empty-state">
@@ -151,20 +334,6 @@ async function loadDevices() {
         </div>`;
     }
   }
-}
-
-// ── Copy to clipboard helper ──
-function copyCommand(el) {
-  const code = el.querySelector('code').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    const hint = el.querySelector('.copy-hint');
-    hint.textContent = '✅ Copied!';
-    hint.style.color = 'var(--accent)';
-    setTimeout(() => {
-      hint.textContent = '📋 Click to copy';
-      hint.style.color = '';
-    }, 2000);
-  });
 }
 
 function selectDevice(serial) {
@@ -186,7 +355,10 @@ function selectDevice(serial) {
   loadPackages();
 }
 
+// ══════════════════════════════════════════
 // ── Package Management ──
+// ══════════════════════════════════════════
+
 async function loadPackages() {
   const container = document.getElementById('package-list');
   const label = document.getElementById('pkg-count-label');
@@ -196,17 +368,35 @@ async function loadPackages() {
   state.selectedPackages.clear();
   updateSelectionUI();
 
-  const endpoint = state.filter === 'all' ? '/api/packages/all' : '/api/packages';
-
   try {
-    const res = await fetch(`${API}${endpoint}?serial=${state.selectedDevice}`);
-    const data = await res.json();
+    let packages = [];
 
-    if (!data.ok) throw new Error(data.error);
+    if (state.mode === 'webusb' && state.adb) {
+      // ── WebUSB mode ──
+      const cmd = state.filter === 'all' ? 'pm list packages' : 'pm list packages -3';
+      const output = await state.adb.shell(cmd);
 
-    state.packages = data.packages;
+      packages = output.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.startsWith('package:'))
+        .map(line => ({
+          packageName: line.replace('package:', '').trim()
+        }))
+        .sort((a, b) => a.packageName.localeCompare(b.packageName));
+
+    } else {
+      // ── API mode ──
+      const endpoint = state.filter === 'all' ? '/api/packages/all' : '/api/packages';
+      const res = await fetch(`${API}${endpoint}?serial=${state.selectedDevice}`);
+      const data = await res.json();
+
+      if (!data.ok) throw new Error(data.error);
+      packages = data.packages;
+    }
+
+    state.packages = packages;
     state.filteredPackages = [...state.packages];
-    label.textContent = `${data.total} ${state.filter === 'all' ? 'total' : 'user'} apps found`;
+    label.textContent = `${packages.length} ${state.filter === 'all' ? 'total' : 'user'} apps found`;
 
     renderPackages();
   } catch (e) {
@@ -302,7 +492,10 @@ function setFilter(type) {
   loadPackages();
 }
 
+// ══════════════════════════════════════════
 // ── Uninstall Flow ──
+// ══════════════════════════════════════════
+
 function uninstallSelected() {
   const pkgs = Array.from(state.selectedPackages);
   if (pkgs.length === 0) return;
@@ -338,30 +531,51 @@ async function confirmUninstall() {
   `;
   document.body.appendChild(overlay);
 
-  const endpoint = state.filter === 'all' ? '/api/uninstall-system' : '/api/uninstall';
-
   try {
-    const res = await fetch(`${API}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        serial: state.selectedDevice,
-        packages: pkgs,
-      }),
-    });
+    let results = [];
 
-    const data = await res.json();
+    if (state.mode === 'webusb' && state.adb) {
+      // ── WebUSB mode: run uninstall commands directly ──
+      for (let i = 0; i < pkgs.length; i++) {
+        document.getElementById('progress-detail').textContent = `${i + 1} / ${pkgs.length}`;
+
+        const cmd = state.filter === 'all'
+          ? `pm uninstall -k --user 0 ${pkgs[i]}`
+          : `pm uninstall ${pkgs[i]}`;
+
+        try {
+          const output = await state.adb.shell(cmd);
+          const success = output.toLowerCase().includes('success');
+          results.push({ packageName: pkgs[i], success, output: output.trim() });
+        } catch (e) {
+          results.push({ packageName: pkgs[i], success: false, output: e.message });
+        }
+      }
+    } else {
+      // ── API mode ──
+      const endpoint = state.filter === 'all' ? '/api/uninstall-system' : '/api/uninstall';
+      const res = await fetch(`${API}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serial: state.selectedDevice,
+          packages: pkgs,
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Uninstall failed');
+      results = data.results;
+    }
 
     // Remove overlay
     document.getElementById('progress-overlay')?.remove();
 
-    if (!data.ok) throw new Error(data.error || 'Uninstall failed');
-
     // Show results
-    showResults(data.results);
+    showResults(results);
   } catch (e) {
     document.getElementById('progress-overlay')?.remove();
-    alert('Error: ' + e.message);
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
