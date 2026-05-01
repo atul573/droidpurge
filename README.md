@@ -53,8 +53,8 @@ A beautiful, modern web interface for managing Android applications via ADB (And
 
 ```bash
 # Clone the repository
-git clone https://github.com/atul573/andrioddebugbridge.git
-cd andrioddebugbridge
+git clone https://github.com/atul573/droidpurge.git
+cd droidpurge
 
 # Install dependencies
 npm install
@@ -68,7 +68,7 @@ Open **http://localhost:3000** in your browser.
 ### One-liner
 
 ```bash
-git clone https://github.com/atul573/andrioddebugbridge.git && cd andrioddebugbridge && npm install && npm start
+git clone https://github.com/atul573/droidpurge.git && cd droidpurge && npm install && npm start
 ```
 
 ---
